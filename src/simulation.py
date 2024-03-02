@@ -2,6 +2,7 @@ import os
 import omni
 import carb,time
 import numpy as np
+from matplotlib import pyplot as plt
 from omni.isaac.kit import SimulationApp
 import asyncio                                                  
 simulation_app = SimulationApp({"headless": False})
@@ -24,6 +25,14 @@ from Mir100 import MIR100
 
 from omni.isaac.range_sensor import _range_sensor   
 
+from omni.isaac.occupancy_map import _occupancy_map
+
+
+
+
+
+###FUNCTIONS DEFINITION
+
 async def get_lidar_param(lidarPath):                                    # Function to retrieve data from the LIDAR
 
     await omni.kit.app.get_app().next_update_async()            # wait one frame for data
@@ -32,19 +41,42 @@ async def get_lidar_param(lidarPath):                                    # Funct
 
     depth = lidarInterface.get_linear_depth_data("/World"+lidarPath)
     
-    print(depth)                                       # Print the data
-    print(type(depth))
+    #print(depth)                                       # Print the data
+    
+async def get_map():
+
+        physx = omni.physx.acquire_physx_interface()
+        stage_id = omni.usd.get_context().get_stage_id()
+        generator = _occupancy_map.Generator(physx, stage_id)
+        # 0.05m cell size, output buffer will have 4 for occupied cells, 5 for unoccupied, and 6 for cells that cannot be seen
+        # this assumes your usd stage units are in m, and not cm
+        generator.update_settings(.05, 4, 5, 6)
+        # Set location to map from and the min and max bounds to map to
+        generator.set_transform((0, 0, 0), (-2, -2, 0), (2, 2, 0))
+        generator.generate2d()
+        # Get locations of the occupied cells in the stage
+        points = generator.get_occupied_positions()
+        # Get computed 2d occupancy buffer
+        buffer = generator.get_buffer()
+        # Get dimensions for 2d buffer
+        dims = generator.get_dimensions()
+        print(points)
+        
 
 
 
+###SCENE SETUP
 
 
-LOG = False
-#goal_position = np.array([5.0,5.0,0.4])
+omni.kit.commands.execute('ToggleExtension',
+	ext_id='omni.isaac.ros_bridge-1.15.0',
+	enable=True)
+
 
 project_path = os.getcwd()
 warehouse_path = project_path + "/USD/warehouse.usd"
-mir_path = project_path + "/USD/MIRURDF.usd"
+mir_path = project_path + "/USD/MIR.usd"
+lidarread_path = project_path + "/LidarPub.usd"
 
 wheel_radius = 6.45e-2
 wheel_base = 45e-2
@@ -66,9 +98,9 @@ omni.kit.commands.execute('AddGroundPlaneCommand',
     stage=stage,
     planePath='/GroundPlane',
     axis='Z',
-    size=25.0,
+    size = 0.0,
     position=Gf.Vec3f(0.0, 0.0, 0.0),
-    color=Gf.Vec3f(0.5, 0.5, 0.5))
+    color=Gf.Vec3f(0.2, 0, 0.5))
 
 my_mir = my_world.scene.add(
     MIR100(
@@ -78,16 +110,24 @@ my_mir = my_world.scene.add(
         wheel_dof_indices=[1,2],
         create_robot=True,
         usd_path=mir_path,
-        position=np.array([0, -5.0, 0.3]),
+        position=np.array([0, 0, 0.1]),
     )
 )
 
 
 
+
+
+
+###SETUP OMNIGRAPHS
+
+
+
+
+
+###Setup MOVES
+
 lidarPath = "/mir100/base_link/visuals/Lidar"
-
-
-
 
 my_mir = my_world.scene.get_object("mir100")
 
@@ -99,6 +139,13 @@ my_mir.set_joints_default_state(my_mir.get_joints_state())
 
 #Warehouse [-25,25],[-30,0]
 
+
+
+
+
+
+##RUN SIM
+
 end_x = np.random.rand()*40 - 25
 end_y = np.random.rand()*-20 
 
@@ -109,11 +156,17 @@ angular = 10
 my_world.reset()
 
 
+
+
+
+
 while simulation_app.is_running():
     
     my_world.step(render=True)
     timeline.play()                                                 # Start the Simulation
     asyncio.ensure_future(get_lidar_param(lidarPath=lidarPath))   
+    
+
 
     if my_world.is_playing():
         if my_world.current_time_step_index == 0:
@@ -135,6 +188,9 @@ while simulation_app.is_running():
                 print('Going to')
                 print(end_x)
                 print(end_y)
+
+
+                
 
 
 
