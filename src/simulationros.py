@@ -76,6 +76,9 @@ project_path = os.getcwd()
 warehouse_path = project_path + "/USD/warehouse.usd"
 mir_path = project_path + "/USD/MIR.usd"
 
+lidarPath = "/mir100/base_link/visuals/Lidar"
+
+
 wheel_radius = 6.45e-2
 wheel_base = 45e-2
 
@@ -122,7 +125,6 @@ my_mir = my_world.scene.add(
 
 ###Setup MOVES
 
-lidarPath = "/mir100/base_link/visuals/Lidar"
 
 my_mir = my_world.scene.get_object("mir100")
 
@@ -160,29 +162,7 @@ while simulation_app.is_running():
     my_world.step(render=True)
     timeline.play()                                                 # Start the Simulation
     asyncio.ensure_future(get_lidar_param(lidarPath=lidarPath))   
-    
-
-
-    if my_world.is_playing():
-        if my_world.current_time_step_index == 0:
-
-            my_diff_controller.reset()
-        else:
-            position, orientation = my_mir.get_world_pose()
-            
-            wheel_action = my_controller.forward(start_position = position, start_orientation = orientation, goal_position = [end_x , end_y])
-            
-            my_mir.apply_joint_actions(wheel_action)
-
-            if np.abs(position[0] - end_x) < 0.2 and np.abs(position[1] - end_y) < 0.2:
-                print(position)
-                
-                print('Reached')
-                end_x = np.random.rand()*40 - 25
-                end_y = np.random.rand()*- 20 
-                print('Going to')
-                print(end_x)
-                print(end_y)
+    asyncio.ensure_future(get_map())
 
 
                 
